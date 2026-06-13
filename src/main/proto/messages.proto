@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+// Tell the compiler to put the generated Java code inside this package
+package com.sandbox.ledger;
+option java_package = "com.sandbox.ledger.proto";
+option java_outer_classname = "LedgerMessages";
+
+// This replaces our messy String splitting!
+message NetworkEnvelope {
+  string command = 1;         // "PREPARE_SENDER", "COMMIT", etc.
+  string transactionId = 2;   // "TX-001"
+  int32 amount = 3;           // 50
+  string coordinatorId = 4;   // "Coordinator"
+}
