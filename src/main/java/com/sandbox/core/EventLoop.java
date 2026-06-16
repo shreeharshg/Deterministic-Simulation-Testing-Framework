@@ -19,7 +19,7 @@ public class EventLoop {
     public void run() {
         System.out.println("--- Starting Simulation Loop ---");
 
-        while (!queue.isEmpty()) {
+        while (!queue.isEmpty() && !Thread.currentThread().isInterrupted()) {
             Event event = queue.poll(); // Get the event with the lowest timestamp
 
             // Fast-forward time to the exact moment this event occurs

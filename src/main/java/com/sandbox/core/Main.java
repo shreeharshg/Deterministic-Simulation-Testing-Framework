@@ -5,78 +5,66 @@ import com.sandbox.ledger.Coordinator;
 import com.sandbox.ledger.Transaction;
 import com.sandbox.network.VirtualNetwork;
 import com.sandbox.storage.VirtualDisk;
-import com.sandbox.telemetry.DirectWebSocketExporter;
 import com.sandbox.telemetry.LmaxDisruptorExporter;
 import com.sandbox.telemetry.TelemetryExporter;
 
-import java.util.concurrent.CountDownLatch;
-
 public class Main {
     public static void main(String[] args) {
-        System.out.println("=== INITIALIZING DETERMINISTIC SANDBOX ===");
+        System.out.println("=== DETERMINISTIC SANDBOX SERVER ===");
+        System.out.println("🚀 Booting API and LMAX Disruptor...");
 
-        // 1. Create a Latch that forces the program to wait for 1 connection
-        CountDownLatch waitForUI = new CountDownLatch(1);
+        new LmaxDisruptorExporter();
 
-        // 2. Start the API Server
-        TelemetryExporter telemetry = new LmaxDisruptorExporter(waitForUI);
-        System.out.println("🚀 WebSocket Server started on ws://localhost:7070/ws");
+        System.out.println("✅ Backend is LIVE. Waiting for UI commands on Port 7070...");
+    }
 
-        // 3. Initialize the Matrix
-        SimulationContext context = new SimulationContext(150);
+    // Accepts dynamic Chaos params from the UI
+    public static void runUIDemo(long seed, double dropRate, int minLat, int maxLat, TelemetryExporter telemetry) {
+        telemetry.export("{\"type\": \"FUZZER_LOG\", \"status\": \"INFO\", \"msg\": \"▶️ Starting visual playback for Seed " + seed + "...\"}");
+
+        SimulationContext context = new SimulationContext(seed);
         EventLoop loop = new EventLoop(context);
 
         VirtualNetwork network = new VirtualNetwork(context, loop, telemetry);
+        network.setChaosParameters(dropRate, minLat, maxLat); // APPLIES SETTINGS
+
         VirtualDisk disk = new VirtualDisk(context, loop);
 
         BankNode nodeA = new BankNode("Node_A", 500, context, loop, network, disk);
         BankNode nodeB = new BankNode("Node_B", 100, context, loop, network, disk);
-        Coordinator coordinator = new Coordinator(context, network);
+        Coordinator coordinator = new Coordinator(context, network, telemetry);
 
         network.registerNode(nodeA);
         network.registerNode(nodeB);
         network.registerNode(coordinator);
 
-        // 4. Schedule the Transaction
         loop.schedule(new Event(0) {
             @Override
             public void execute() {
-                Transaction tx = new Transaction("TX-001", "Node_A", "Node_B", 50);
-                coordinator.initiateTransfer(tx);
-            }
-        });
-
-        // 5. Schedule the Invariant Checker
-        loop.schedule(new Event(1000) {
-            @Override
-            public void execute() {
-                System.out.println("\n=== END OF SIMULATION ===");
-                System.out.println("Node A Balance: $" + nodeA.getBalance());
-                System.out.println("Node B Balance: $" + nodeB.getBalance());
-                int total = nodeA.getBalance() + nodeB.getBalance();
-                System.out.println("Total Money in System: $" + total + " (Should always be $600)");
-                if (total != 600) {
-                    System.out.println("🚨 INVARIANT FAILED: MONEY WAS LOST OR CREATED!");
-                } else {
-                    System.out.println("✅ INVARIANT PASSED: System is mathematically sound.");
+                for (int i = 1; i <= 10; i++) {
+                    coordinator.initiateTransfer(new Transaction("TX-" + i, "Node_A", "Node_B", 10));
                 }
             }
         });
 
-        // ---------------------------------------------------------
-        // CRITICAL FIX: THIS FORCES JAVA TO STOP AND WAIT FOR THE UI
-        // ---------------------------------------------------------
-        System.out.println("⏳ WAITING FOR NEXT.JS UI TO CONNECT...");
-        try {
-            waitForUI.await(); // The code freezes here until the UI connects
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        // Metrics Ticker updates the UI Balances every 50ms
+// Metrics Ticker
+        for (long t = 0; t <= 1500; t += 50) {
+            loop.schedule(new Event(t) {
+                @Override
+                public void execute() {
+                    // WE ADDED lockedA and lockedB to the JSON output
+                    telemetry.export(String.format(
+                            "{\"type\": \"METRICS\", \"time\": %d, \"balanceA\": %d, \"lockedA\": %d, \"balanceB\": %d, \"lockedB\": %d}",
+                            context.getVirtualTime(),
+                            nodeA.getBalance(), nodeA.getLockedFunds(),
+                            nodeB.getBalance(), nodeB.getLockedFunds()
+                    ));
+                }
+            });
         }
 
-        System.out.println("▶️ UI CONNECTED! STARTING SIMULATION NOW!");
-        // ---------------------------------------------------------
-
-        // 6. Start the Engine!
         loop.run();
+        telemetry.export("{\"type\": \"FUZZER_LOG\", \"status\": \"INFO\", \"msg\": \"✅ Visual Playback Complete.\"}");
     }
 }

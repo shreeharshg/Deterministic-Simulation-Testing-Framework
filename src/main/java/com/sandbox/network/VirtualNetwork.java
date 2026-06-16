@@ -10,19 +10,25 @@ import java.util.Map;
 public class VirtualNetwork {
     private final SimulationContext context;
     private final EventLoop eventLoop;
-    private final TelemetryExporter telemetry; // <-- Added Exporter
+    private final TelemetryExporter telemetry;
     private final Map<String, Node> nodes;
 
-    private final double DROP_RATE = 0.20;
-    private final int MIN_LATENCY = 10;
-    private final int MAX_LATENCY = 100;
+    // Default Chaos Parameters (Can be overridden by UI)
+    private double dropRate = 0.20;
+    private int minLatency = 10;
+    private int maxLatency = 100;
 
-    // Inject TelemetryExporter via constructor
     public VirtualNetwork(SimulationContext context, EventLoop eventLoop, TelemetryExporter telemetry) {
         this.context = context;
         this.eventLoop = eventLoop;
         this.telemetry = telemetry;
         this.nodes = new HashMap<>();
+    }
+
+    public void setChaosParameters(double dropRate, int minLatency, int maxLatency) {
+        this.dropRate = dropRate;
+        this.minLatency = minLatency;
+        this.maxLatency = maxLatency;
     }
 
     public void registerNode(Node node) {
@@ -33,24 +39,18 @@ public class VirtualNetwork {
         Node destination = nodes.get(to);
         if (destination == null) return;
 
-        // --- CHAOS: PACKET DROP ---
-        if (context.randomDouble() < DROP_RATE) {
-            System.out.println("[Time: " + context.getVirtualTime() + "ms] ❌ CHAOS: Packet dropped (" + from + " -> " + to + ")");
-
-            // Broadcast the DROP event to the UI
+        // CHAOS: Packet Drop
+        if (context.randomDouble() < dropRate) {
             String json = String.format("{\"type\": \"PACKET_DROP\", \"from\": \"%s\", \"to\": \"%s\", \"time\": %d}",
                     from, to, context.getVirtualTime());
             telemetry.export(json);
             return;
         }
 
-        // --- NORMAL DELIVERY ---
-        int delay = context.randomInt(MIN_LATENCY, MAX_LATENCY);
+        // NORMAL DELIVERY
+        int delay = context.randomInt(minLatency, maxLatency);
         long deliveryTime = context.getVirtualTime() + delay;
 
-        System.out.println("[Time: " + context.getVirtualTime() + "ms] 📨 Network routing (" + from + " -> " + to + ")");
-
-        // Broadcast the SENT event to the UI
         String json = String.format("{\"type\": \"PACKET_SENT\", \"from\": \"%s\", \"to\": \"%s\", \"time\": %d}",
                 from, to, context.getVirtualTime());
         telemetry.export(json);

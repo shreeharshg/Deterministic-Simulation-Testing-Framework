@@ -35,6 +35,7 @@ public class BankNode implements Node {
     public String getId() { return nodeId; }
     public int getBalance() { return balance; }
 
+    public int getLockedFunds() { return lockedFunds; }
     @Override
     public void onMessageReceived(String from, byte[] payload) {
         try {
